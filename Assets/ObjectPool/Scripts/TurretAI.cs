@@ -2,42 +2,46 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class TurretAI : MonoBehaviour {
-
+public class TurretAI : MonoBehaviour
+{
+#region Variables
     public enum TurretType
     {
         Single = 1,
         Dual = 2,
         Catapult = 3,
     }
-    
+
+    [Header("Targeting")]
     public GameObject currentTarget;
     public Transform turreyHead;
+    private Transform lockOnPos;
 
+    [Header("Attack Settings")]
     public float attackDist = 10.0f;
     public float attackDamage;
     public float shootCoolDown;
     private float timer;
     public float loockSpeed;
 
-    //public Quaternion randomRot;
+    [Header("Rotation Settings")]
     public Vector3 randomRot;
     public Animator animator;
 
-    [Header("[Turret Type]")]
+    [Header("Turret Type")]
     public TurretType turretType = TurretType.Single;
-    
+
+    [Header("Muzzle Settings")]
     public Transform muzzleMain;
     public Transform muzzleSub;
     public GameObject muzzleEff;
     public GameObject bullet;
     private bool shootLeft = true;
+#endregion
 
-    private Transform lockOnPos;
-
-    //public TurretShoot_Base shotScript;
-
-    void Start () {
+#region Unity Methods
+    void Start ()
+    {
         InvokeRepeating("ChackForTarget", 0, 0.5f);
         //shotScript = GetComponent<TurretShoot_Base>();
 
@@ -49,12 +53,12 @@ public class TurretAI : MonoBehaviour {
         randomRot = new Vector3(0, Random.Range(0, 359), 0);
     }
 	
-	void Update () {
+    void Update() {
         if (currentTarget != null)
         {
             FollowTarget();
-
             float currentTargetDist = Vector3.Distance(transform.position, currentTarget.transform.position);
+
             if (currentTargetDist > attackDist)
             {
                 currentTarget = null;
@@ -66,25 +70,22 @@ public class TurretAI : MonoBehaviour {
         }
 
         timer += Time.deltaTime;
-        if (timer >= shootCoolDown)
-        {
-            if (currentTarget != null)
-            {
-                timer = 0;
-                
-                if (animator != null)
-                {
-                    animator.SetTrigger("Fire");
-                    ShootTrigger();
-                }
-                else
-                {
-                    ShootTrigger();
-                }
-            }
-        }
-	}
 
+        if (Input.GetMouseButtonDown(0) && timer >= shootCoolDown && currentTarget != null)
+        {
+            timer = 0;
+
+            if (animator != null)
+            {
+                animator.SetTrigger("Fire");
+            }
+
+            ShootTrigger();
+        }
+    }
+#endregion
+
+#region Turret Behavior Methods
     private void ChackForTarget()
     {
         Collider[] colls = Physics.OverlapSphere(transform.position, attackDist);
@@ -95,6 +96,7 @@ public class TurretAI : MonoBehaviour {
             if (colls[i].tag == "Player")
             {
                 float dist = Vector3.Distance(transform.position, colls[i].transform.position);
+
                 if (dist < distAway)
                 {
                     currentTarget = colls[i].gameObject;
@@ -104,11 +106,12 @@ public class TurretAI : MonoBehaviour {
         }
     }
 
-    private void FollowTarget() //todo : smooth rotate
+    private void FollowTarget()
     {
         Vector3 targetDir = currentTarget.transform.position - turreyHead.position;
         targetDir.y = 0;
         //turreyHead.forward = targetDir;
+
         if (turretType == TurretType.Single)
         {
             turreyHead.forward = targetDir;
@@ -121,11 +124,11 @@ public class TurretAI : MonoBehaviour {
 
     private void ShootTrigger()
     {
-        //shotScript.Shoot(currentTarget);
         Shoot(currentTarget);
-        //Debug.Log("We shoot some stuff!");
     }
-    
+#endregion
+
+#region Helper Methods
     Vector3 CalculateVelocity(Vector3 target, Vector3 origen, float time)
     {
         Vector3 distance = target - origen;
@@ -175,43 +178,17 @@ public class TurretAI : MonoBehaviour {
 
     public void Shoot(GameObject go)
     {
-        if (turretType == TurretType.Catapult)
-        {
-            lockOnPos = go.transform;
-            //Aplicar POOL OBJECT
-            Instantiate(muzzleEff, muzzleMain.transform.position, muzzleMain.rotation);
-            GameObject missleGo = Instantiate(bullet, muzzleMain.transform.position, muzzleMain.rotation);
-            Projectile projectile = missleGo.GetComponent<Projectile>();
-            projectile.target = lockOnPos;
-        }
-        else if(turretType == TurretType.Dual)
-        {
-            if (shootLeft)
-            {
-                //Aplicar POOL OBJECT
-                Instantiate(muzzleEff, muzzleMain.transform.position, muzzleMain.rotation);
-                GameObject missleGo = Instantiate(bullet, muzzleMain.transform.position, muzzleMain.rotation);
-                Projectile projectile = missleGo.GetComponent<Projectile>();
-                projectile.target = transform.GetComponent<TurretAI>().currentTarget.transform;
-            }
-            else
-            {
-                //Aplicar POOL OBJECT
-                Instantiate(muzzleEff, muzzleSub.transform.position, muzzleSub.rotation);
-                GameObject missleGo = Instantiate(bullet, muzzleSub.transform.position, muzzleSub.rotation);
-                Projectile projectile = missleGo.GetComponent<Projectile>();
-                projectile.target = transform.GetComponent<TurretAI>().currentTarget.transform;
-            }
+        Transform muzzle = (muzzleSub != null && shootLeft) ? muzzleSub : muzzleMain;
+        shootLeft = !shootLeft;
 
-            shootLeft = !shootLeft;
-        }
-        else
-        {
-            //Aplicar POOL OBJECT
-            Instantiate(muzzleEff, muzzleMain.transform.position, muzzleMain.rotation);
-            GameObject missleGo = Instantiate(bullet, muzzleMain.transform.position, muzzleMain.rotation);
-            Projectile projectile = missleGo.GetComponent<Projectile>();
-            projectile.target = currentTarget.transform;
-        }
+        Instantiate(muzzleEff, muzzle.position, muzzle.rotation);
+
+        GameObject bullet = BulletPool.Instance.GetBullet();
+        bullet.transform.position = muzzle.position;
+        bullet.transform.rotation = muzzle.rotation;
+
+        Projectile projectile = bullet.GetComponent<Projectile>();
+        projectile.target = go.transform;
     }
+#endregion
 }
